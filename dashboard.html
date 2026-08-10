@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم | DZ Store Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-main: #18191a;
+            --bg-card: #242526;
+            --bg-hover: #3a3b3c;
+            --accent-gray: #b0b3b8;
+            --text-light: #e4e6eb;
+            --text-white: #ffffff;
+            --danger: #e53935;
+            --success: #4caf50;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text-light); min-height: 100vh; display: flex; flex-direction: column; }
+
+        header {
+            background-color: var(--bg-card); padding: 1rem 2rem; display: flex;
+            justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .logo { font-size: 1.3rem; font-weight: 800; color: var(--text-white); display: flex; align-items: center; gap: 8px; }
+        .nav-btn { background: var(--bg-hover); color: var(--text-light); border: 1px solid var(--accent-gray); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; text-decoration: none; font-size: 0.9rem; }
+
+        .container { max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem; flex: 1; width: 100%; }
+        
+        .tabs-header { display: flex; gap: 10px; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 10px; }
+        .tab-btn { background: var(--bg-card); color: var(--accent-gray); border: 1px solid var(--bg-hover); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; display: flex; align-items: center; gap: 8px; }
+        .tab-btn.active { background: var(--text-white); color: var(--bg-main); border-color: var(--text-white); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .admin-card { background: var(--bg-card); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 2rem; }
+        .card-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 1.2rem; color: var(--text-white); display: flex; align-items: center; gap: 10px; }
+
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 1rem; }
+        .form-group label { font-size: 0.85rem; color: var(--accent-gray); }
+        .form-group input, .form-group textarea { background: var(--bg-main); border: 1px solid var(--bg-hover); padding: 0.8rem; border-radius: 8px; color: var(--text-white); font-size: 0.95rem; }
+
+        /* منطقة رفع وتجربة الصور */
+        .file-upload-wrapper {
+            position: relative;
+            background: var(--bg-main);
+            border: 2px dashed var(--bg-hover);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .file-upload-wrapper:hover { border-color: var(--accent-gray); }
+        .file-upload-wrapper input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        
+        .preview-images-container { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .preview-thumb { width: 70px; height: 70px; border-radius: 8px; object-fit: cover; border: 1px solid var(--bg-hover); }
+
+        .submit-btn { background: var(--text-white); color: var(--bg-main); border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .submit-btn:hover { background: #e0e0e0; }
+
+        .products-table { width: 100%; border-collapse: collapse; margin-top: 1rem; text-align: right; }
+        .products-table th, .products-table td { padding: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .products-table th { color: var(--accent-gray); font-size: 0.9rem; }
+        .table-img { width: 45px; height: 45px; border-radius: 6px; object-fit: cover; }
+        .delete-btn { background: var(--danger); color: white; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+
+        .search-box { width: 100%; max-width: 400px; margin-bottom: 1.2rem; }
+        .delivery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; max-height: 600px; overflow-y: auto; padding-left: 5px; }
+        .wilaya-card { background: var(--bg-main); border: 1px solid var(--bg-hover); padding: 1rem; border-radius: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .wilaya-name { font-weight: bold; color: var(--text-white); font-size: 0.95rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; }
+        .rate-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .rate-field label { font-size: 0.75rem; color: var(--accent-gray); display: block; margin-bottom: 2px; }
+        .rate-field input { width: 100%; background: var(--bg-card); border: 1px solid var(--bg-hover); color: var(--text-white); padding: 6px; border-radius: 6px; text-align: center; }
+
+        .toast { position: fixed; bottom: 20px; left: 20px; background: var(--success); color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo"><i class="fa-solid fa-sliders"></i> لوحة تحكم المتجر</div>
+        <a href="index.html" class="nav-btn"><i class="fa-solid fa-store"></i> العودة للمتجر</a>
+    </header>
+
+    <main class="container">
+        
+        <div class="tabs-header">
+            <button class="tab-btn active" onclick="switchTab('products')"><i class="fa-solid fa-box"></i> إدارة المنتجات</button>
+            <button class="tab-btn" onclick="switchTab('delivery')"><i class="fa-solid fa-truck"></i> أسعار التوصيل (58 ولاية)</button>
+        </div>
+
+        <div id="productsTab" class="tab-content active">
+            <div class="admin-card">
+                <div class="card-title"><i class="fa-solid fa-plus-circle"></i> إضافة منتج جديد</div>
+                <form onsubmit="saveProduct(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>اسم المنتج *</label>
+                            <input type="text" id="pName" required placeholder="أدخل اسم المنتج">
+                        </div>
+                        <div class="form-group">
+                            <label>السعر (د.ج) *</label>
+                            <input type="number" id="pPrice" required placeholder="مثال: 3500">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>صور المنتج من جهازك *</label>
+                        <div class="file-upload-wrapper">
+                            <i class="fa-solid fa-cloud-arrow-up" style="font-size: 2rem; color: var(--accent-gray); margin-bottom: 8px;"></i>
+                            <p style="font-size: 0.9rem; color: var(--accent-gray);">اضغط هنا لاختيار صورة أو أكثر من الهاتف/الحاسوب</p>
+                            <input type="file" id="pImageInput" accept="image/*" multiple onchange="handleFileSelect(event)">
+                        </div>
+                        <div class="preview-images-container" id="previewContainer"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>وصف المنتج</label>
+                        <textarea id="pDesc" rows="3" placeholder="أدخل التفاصيل والخصائص..."></textarea>
+                    </div>
+
+                    <button type="submit" class="submit-btn"><i class="fa-solid fa-save"></i> حفظ المنتج</button>
+                </form>
+            </div>
+
+            <div class="admin-card">
+                <div class="card-title"><i class="fa-solid fa-boxes-stacked"></i> قائمة المنتجات الحالية</div>
+                <table class="products-table">
+                    <thead>
+                        <tr>
+                            <th>الصورة</th>
+                            <th>الاسم</th>
+                            <th>السعر</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="deliveryTab" class="tab-content">
+            <div class="admin-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 1rem;">
+                    <div class="card-title" style="margin-bottom:0;"><i class="fa-solid fa-truck-ram"></i> تعديل أسعار التوصيل للولايات</div>
+                    <button class="submit-btn" onclick="saveDeliveryRates()"><i class="fa-solid fa-floppy-disk"></i> حفظ جميع التعديلات</button>
+                </div>
+
+                <div class="form-group search-box">
+                    <input type="text" id="deliverySearch" placeholder="ابحث باسم الولاية أو رقمها..." onkeyup="filterWilayas()">
+                </div>
+
+                <div class="delivery-grid" id="deliveryGrid"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <div class="toast" id="toastMsg">تم الحفظ بنجاح!</div>
+
+    <script>
+        if (sessionStorage.getItem('admin_authenticated') !== 'true') {
+            alert("غير مصرح لك بالوصول! يرجى الدخول من المتجر أولاً.");
+            window.location.href = "index.html";
+        }
+
+        const defaultDeliveryRates = {
+            1:  { name: "01 - أدرار", home: 1400, office: 800 },
+            2:  { name: "02 - الشلف", home: 800, office: 400 },
+            3:  { name: "03 - الأغواط", home: 1000, office: 500 },
+            4:  { name: "04 - أم البواقي", home: 850, office: 400 },
+            5:  { name: "05 - باتنة", home: 850, office: 400 },
+            6:  { name: "06 - بجاية", home: 800, office: 400 },
+            7:  { name: "07 - بسكرة", home: 900, office: 500 },
+            8:  { name: "08 - بشار", home: 1200, office: 700 },
+            9:  { name: "09 - البليدة", home: 650, office: 400 },
+            10: { name: "10 - البويرة", home: 750, office: 400 },
+            11: { name: "11 - تمنراست", home: 1700, office: 1000 },
+            12: { name: "12 - تبسة", home: 900, office: 500 },
+            13: { name: "13 - تلمسان", home: 850, office: 400 },
+            14: { name: "14 - تيارت", home: 850, office: 400 },
+            15: { name: "15 - تيزي وزو", home: 750, office: 400 },
+            16: { name: "16 - الجزائر العاصمة", home: 450, office: 300 },
+            17: { name: "17 - الجلفة", home: 1000, office: 500 },
+            18: { name: "18 - جيجل", home: 800, office: 400 },
+            19: { name: "19 - سطيف", home: 800, office: 400 },
+            20: { name: "20 - سعيدة", home: 850, office: 400 },
+            21: { name: "21 - سكيكدة", home: 850, office: 400 },
+            22: { name: "22 - سيدي بلعباس", home: 800, office: 400 },
+            23: { name: "23 - عنابة", home: 850, office: 400 },
+            24: { name: "24 - قالمة", home: 850, office: 400 },
+            25: { name: "25 - قسنطينة", home: 800, office: 400 },
+            26: { name: "26 - المدية", home: 800, office: 400 },
+            27: { name: "27 - مستغانم", home: 800, office: 400 },
+            28: { name: "28 - المسيلة", home: 850, office: 400 },
+            29: { name: "29 - معسكر", home: 850, office: 400 },
+            30: { name: "30 - ورقلة", home: 1000, office: 600 },
+            31: { name: "31 - وهران", home: 800, office: 400 },
+            32: { name: "32 - البيض", home: 1100, office: 600 },
+            33: { name: "33 - إليزي", home: 1800, office: 1200 },
+            34: { name: "34 - برج بوعريريج", home: 800, office: 400 },
+            35: { name: "35 - بومرداس", home: 650, office: 400 },
+            36: { name: "36 - الطارف", home: 850, office: 400 },
+            37: { name: "37 - تندوف", home: 1600, office: 1000 },
+            38: { name: "38 - تيسمسيلت", home: 850, office: 400 },
+            39: { name: "39 - الوادي", home: 1000, office: 600 },
+            40: { name: "40 - خنشلة", home: 850, office: 400 },
+            41: { name: "41 - سوق أهراس", home: 850, office: 400 },
+            42: { name: "42 - تيبازة", home: 650, office: 400 },
+            43: { name: "43 - ميلة", home: 800, office: 400 },
+            44: { name: "44 - عين الدفلى", home: 800, office: 400 },
+            45: { name: "45 - النعامة", home: 1100, office: 600 },
+            46: { name: "46 - عين تموشنت", home: 800, office: 400 },
+            47: { name: "47 - غرداية", home: 1000, office: 600 },
+            48: { name: "48 - غليزان", home: 800, office: 400 },
+            49: { name: "49 - تيميمون", home: 1400, office: 800 },
+            50: { name: "50 - برج باجي مختار", home: 1800, office: 1200 },
+            51: { name: "51 - أولاد جلال", home: 900, office: 500 },
+            52: { name: "52 - بني عباس", home: 1300, office: 800 },
+            53: { name: "53 - عين صالح", home: 1600, office: 1000 },
+            54: { name: "54 - عين قزام", home: 1800, office: 1200 },
+            55: { name: "55 - تقرت", home: 1000, office: 600 },
+            56: { name: "56 - جانت", home: 1800, office: 1200 },
+            57: { name: "57 - المغير", home: 1000, office: 600 },
+            58: { name: "58 - المنيعة", home: 1100, office: 700 }
+        };
+
+        let currentDeliveryRates = JSON.parse(localStorage.getItem('dz_delivery_rates')) || defaultDeliveryRates;
+        let uploadedImagesBase64 = [];
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            if(tab === 'products') {
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+                document.getElementById('productsTab').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+                document.getElementById('deliveryTab').classList.add('active');
+                renderDeliveryEditor();
+            }
+        }
+
+        // تحويل الصور المرفوعة إلى ترميز Base64
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            const previewContainer = document.getElementById('previewContainer');
+            previewContainer.innerHTML = '';
+            uploadedImagesBase64 = [];
+
+            if (files.length === 0) return;
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Img = e.target.result;
+                    uploadedImagesBase64.push(base64Img);
+
+                    const imgElement = document.createElement('img');
+                    imgElement.src = base64Img;
+                    imgElement.className = 'preview-thumb';
+                    previewContainer.appendChild(imgElement);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function getProducts() {
+            return JSON.parse(localStorage.getItem('dz_products')) || [];
+        }
+
+        function saveProduct(e) {
+            e.preventDefault();
+            
+            if (uploadedImagesBase64.length === 0) {
+                alert("يرجى اختيار صورة واحدة على الأقل من جهازك.");
+                return;
+            }
+
+            const name = document.getElementById('pName').value;
+            const price = parseFloat(document.getElementById('pPrice').value);
+            const desc = document.getElementById('pDesc').value;
+
+            const newProduct = {
+                id: Date.now(),
+                name: name,
+                price: price,
+                desc: desc,
+                images: uploadedImagesBase64,
+                image: uploadedImagesBase64[0]
+            };
+
+            const products = getProducts();
+            products.push(newProduct);
+            
+            try {
+                localStorage.setItem('dz_products', JSON.stringify(products));
+                e.target.reset();
+                uploadedImagesBase64 = [];
+                document.getElementById('previewContainer').innerHTML = '';
+                renderProductsTable();
+                showToast('تمت إضافة المنتج بنجاح');
+            } catch (err) {
+                alert("تعذر الحفظ: حجم الصور كبير جداً على الذاكرة المحلية، يرجى اختيار صور بأحجام أقل.");
+            }
+        }
+
+        function deleteProduct(id) {
+            if (confirm('هل أنت تأكد من حذف هذا المنتج؟')) {
+                let products = getProducts();
+                products = products.filter(p => p.id !== id);
+                localStorage.setItem('dz_products', JSON.stringify(products));
+                renderProductsTable();
+                showToast('تم حذف المنتج');
+            }
+        }
+
+        function renderProductsTable() {
+            const products = getProducts();
+            const tbody = document.getElementById('productsTableBody');
+            if (products.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color: var(--accent-gray);">لا توجد منتجات مسجلة</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = products.map(p => {
+                const img = (p.images && p.images.length) ? p.images[0] : p.image;
+                return `
+                    <tr>
+                        <td><img src="${img}" class="table-img"></td>
+                        <td style="font-weight:bold;">${p.name}</td>
+                        <td>${p.price} د.ج</td>
+                        <td><button class="delete-btn" onclick="deleteProduct(${p.id})"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderDeliveryEditor() {
+            const container = document.getElementById('deliveryGrid');
+            container.innerHTML = Object.keys(currentDeliveryRates).map(id => {
+                const item = currentDeliveryRates[id];
+                return `
+                    <div class="wilaya-card" data-name="${item.name}">
+                        <div class="wilaya-name">${item.name}</div>
+                        <div class="rate-inputs">
+                            <div class="rate-field">
+                                <label>المنزل (د.ج)</label>
+                                <input type="number" id="home_${id}" value="${item.home}">
+                            </div>
+                            <div class="rate-field">
+                                <label>المكتب (د.ج)</label>
+                                <input type="number" id="office_${id}" value="${item.office}">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterWilayas() {
+            const query = document.getElementById('deliverySearch').value.toLowerCase();
+            const cards = document.querySelectorAll('.wilaya-card');
+            cards.forEach(card => {
+                const name = card.getAttribute('data-name').toLowerCase();
+                card.style.display = name.includes(query) ? 'flex' : 'none';
+            });
+        }
+
+        function saveDeliveryRates() {
+            Object.keys(currentDeliveryRates).forEach(id => {
+                const homeVal = parseInt(document.getElementById(`home_${id}`).value) || 0;
+                const officeVal = parseInt(document.getElementById(`office_${id}`).value) || 0;
+                currentDeliveryRates[id].home = homeVal;
+                currentDeliveryRates[id].office = officeVal;
+            });
+
+            localStorage.setItem('dz_delivery_rates', JSON.stringify(currentDeliveryRates));
+            showToast('تم حفظ أسعار التوصيل بنجاح');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toastMsg');
+            t.textContent = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 2500);
+        }
+
+        renderProductsTable();
+    </script>
+</body>
+</html>
