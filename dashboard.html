@@ -6,7 +6,8 @@
     <title>لوحة التحكم | DZ Store Admin</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
     <style>
         :root {
             --bg-main: #18191a;
@@ -128,6 +129,17 @@
 
                     <button type="submit" class="submit-btn"><i class="fa-solid fa-save"></i> حفظ المنتج</button>
                 </form>
+            </div>
+
+            <div class="admin-card" style="border: 1px solid var(--success);">
+                <div class="card-title"><i class="fa-solid fa-file-export"></i> نشر التعديلات بشكل دائم</div>
+                <p style="color: var(--accent-gray); font-size: 0.9rem; line-height: 1.7; margin-bottom: 1rem;">
+                    كل تعديل تقوم به هنا (منتجات أو أسعار توصيل) يُحفظ فقط كـ <b>مسودة داخل هذا المتصفح</b>.
+                    لكي تصبح التعديلات دائمة ويراها كل زوار الموقع من أي جهاز، اضغط الزر بالأسفل لتنزيل أرشيف
+                    (ملف مضغوط) يحتوي على <b>data.js</b> جاهز ومجلد <b>img</b> فيه صور المنتجات كملفات حقيقية،
+                    ثم استبدل بهما ملف data.js ومجلد img الموجودين في مجلد الموقع (وارفعهما إلى الاستضافة إن كان الموقع منشوراً).
+                </p>
+                <button class="submit-btn" onclick="exportProject()"><i class="fa-solid fa-file-zipper"></i> تصدير data.js + img (تنزيل ملف مضغوط)</button>
             </div>
 
             <div class="admin-card">
@@ -329,6 +341,123 @@
             t.textContent = msg;
             t.style.display = 'block';
             setTimeout(() => { t.style.display = 'none'; }, 2500);
+        }
+
+        // ---------------------------------------------------------------
+        // تصدير المشروع: يحوّل صور المنتجات (base64) إلى ملفات حقيقية داخل
+        // مجلد img/، ويبني ملف data.js نهائي، ويحزم كل ذلك في أرشيف ZIP
+        // جاهز للتنزيل. المتصفح لا يستطيع الكتابة مباشرة على ملفات المشروع
+        // على القرص لأسباب أمنية، لذلك هذا هو أقرب أسلوب لـ"الحفظ الدائم".
+        // ---------------------------------------------------------------
+
+        function base64ToBlob(base64String) {
+            const match = base64String.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/);
+            let mime = 'image/jpeg';
+            let dataPart = base64String;
+            if (match) {
+                mime = match[1];
+                dataPart = match[2];
+            }
+            let ext = mime.split('/')[1] || 'jpg';
+            if (ext === 'jpeg') ext = 'jpg';
+            if (ext === 'svg+xml') ext = 'svg';
+
+            const byteChars = atob(dataPart);
+            const byteNumbers = new Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {
+                byteNumbers[i] = byteChars.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return { blob: new Blob([byteArray], { type: mime }), ext };
+        }
+
+        function buildDataJsFileContent(products, deliveryRates) {
+            return `/**
+ * data.js - إدارة البيانات المركزية لمتجر DZ
+ * تم إنشاؤه تلقائياً بواسطة لوحة التحكم بتاريخ ${new Date().toLocaleString('ar-DZ')}
+ */
+
+// 1. أسعار التوصيل لـ 58 ولاية (هذا هو المصدر الدائم للأسعار)
+const DELIVERY_RATES = ${JSON.stringify(deliveryRates, null, 4)};
+
+// 2. قائمة المنتجات (هذا هو المصدر الدائم للمنتجات، وصور المنتجات موجودة في مجلد img/)
+const PRODUCTS = ${JSON.stringify(products, null, 4)};
+
+// 3. دوال التعامل مع المنتجات
+// ملاحظة: localStorage يُستخدم فقط كـ "مسودة" مؤقتة أثناء التعديل من لوحة التحكم.
+// المصدر الدائم والفعلي هو مصفوفة PRODUCTS في هذا الملف، ولا يتم اعتمادها بشكل نهائي
+// إلا بعد الضغط على "تصدير المشروع" من لوحة التحكم واستبدال data.js ومجلد img في الموقع.
+function getProducts() {
+    const stored = localStorage.getItem('dz_products');
+    return stored ? JSON.parse(stored) : PRODUCTS;
+}
+
+function saveProducts(productsArray) {
+    localStorage.setItem('dz_products', JSON.stringify(productsArray));
+}
+
+// 4. دوال التعامل مع أسعار التوصيل
+function getDeliveryRates() {
+    const stored = localStorage.getItem('dz_delivery_rates');
+    return stored ? JSON.parse(stored) : DELIVERY_RATES;
+}
+
+function saveDeliveryRates(ratesObject) {
+    localStorage.setItem('dz_delivery_rates', JSON.stringify(ratesObject));
+}
+`;
+        }
+
+        async function exportProject() {
+            if (typeof JSZip === 'undefined') {
+                alert('تعذر تحميل مكتبة الأرشفة (JSZip). تحقق من اتصالك بالإنترنت وأعد المحاولة.');
+                return;
+            }
+
+            const products = getProducts();
+            const deliveryRates = getDeliveryRates();
+
+            if (products.length === 0) {
+                if (!confirm('لا توجد أي منتجات محفوظة كمسودة حالياً. هل تريد المتابعة وتصدير data.js بدون منتجات؟')) {
+                    return;
+                }
+            }
+
+            const zip = new JSZip();
+            const imgFolder = zip.folder('img');
+
+            const exportedProducts = products.map(p => {
+                const sourceImages = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
+                const newImagePaths = sourceImages.map((base64Img, idx) => {
+                    const { blob, ext } = base64ToBlob(base64Img);
+                    const filename = `product_${p.id}_${idx + 1}.${ext}`;
+                    imgFolder.file(filename, blob);
+                    return `img/${filename}`;
+                });
+
+                return {
+                    id: p.id,
+                    name: p.name,
+                    price: p.price,
+                    desc: p.desc || '',
+                    images: newImagePaths,
+                    image: newImagePaths[0] || ''
+                };
+            });
+
+            zip.file('data.js', buildDataJsFileContent(exportedProducts, deliveryRates));
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'dz-store-export.zip';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+
+            showToast('تم إنشاء الأرشيف، افتحه وضع data.js ومجلد img داخل مجلد الموقع');
         }
 
         renderProductsTable();
