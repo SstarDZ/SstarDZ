@@ -100,7 +100,6 @@
         .price-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.95rem; }
         .price-row.total { font-weight: bold; font-size: 1.15rem; color: var(--text-white); border-top: 1px solid var(--bg-hover); padding-top: 0.5rem; margin-top: 0.5rem; }
 
-        /* تعديلات نمط السلة */
         .cart-overlay { position: fixed; top: 0; right: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 200; opacity: 0; pointer-events: none; transition: 0.3s; }
         .cart-overlay.active { opacity: 1; pointer-events: all; }
         .cart-sidebar { position: fixed; top: 0; left: -400px; width: 100%; max-width: 380px; height: 100%; background-color: var(--bg-card); z-index: 201; transition: 0.3s; display: flex; flex-direction: column; }
@@ -154,7 +153,6 @@
     </footer>
 
     <script>
-        // إعدادات بوت تلجرام
         const TELEGRAM_BOT_TOKEN = "8709434736:AAGRhJuBNaEjG8H2Bbqwl2g0W-suhFAA2xo";
         const TELEGRAM_CHAT_ID = "8275297896";
 
@@ -219,7 +217,9 @@
             58: { name: "58 - المنيعة", home: 1100, office: 700 }
         };
 
-        const deliveryRates = JSON.parse(localStorage.getItem('dz_delivery_rates')) || defaultRates;
+        function getDeliveryRates() {
+            return JSON.parse(localStorage.getItem('dz_delivery_rates')) || defaultRates;
+        }
 
         function getProducts() {
             const stored = localStorage.getItem('dz_products');
@@ -227,9 +227,9 @@
         }
 
         let storeProducts = getProducts();
-        let cart = []; // تخزين أشكال العناصر المنتجة مع كمياتها: [{ ...product, qty: 1 }]
+        let cart = [];
         let currentImageIdx = 0;
-        let checkoutCartItems = []; // المنتجات المعروضة حالياً في الشراء
+        let checkoutCartItems = [];
 
         const mainContent = document.getElementById('mainContent');
 
@@ -324,18 +324,17 @@
             selectImage(currentImageIdx);
         }
 
-        // تحسين صفحة الشراء لتدعم قائمة من المنتجات المحددة
         function goToCheckout(itemsList) {
             closeCartUI();
             if (!itemsList || itemsList.length === 0) return;
 
-            // تحويل البنية للتأكد من وجود كمية qty لكل عنصر
             checkoutCartItems = itemsList.map(item => ({
                 ...item,
                 qty: item.qty || 1
             }));
 
             const itemsSubtotal = checkoutCartItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+            const deliveryRates = getDeliveryRates();
 
             mainContent.innerHTML = `
                 <button class="back-btn" onclick="showProductsList()"><i class="fa-solid fa-arrow-right"></i> إلغاء ورجوع للمتجر</button>
@@ -440,6 +439,8 @@
             const deliveryCostDisplay = document.getElementById('deliveryCostDisplay');
             const totalCostDisplay = document.getElementById('totalCostDisplay');
 
+            const deliveryRates = getDeliveryRates();
+
             if (wilayaId && deliveryRates[wilayaId]) {
                 const deliveryFee = deliveryRates[wilayaId][deliveryType];
                 const total = itemsSubtotal + deliveryFee;
@@ -495,6 +496,7 @@ ${productsText}
 
             const wilayaSelect = document.getElementById('wilayaSelect');
             const wilayaId = wilayaSelect ? wilayaSelect.value : '';
+            const deliveryRates = getDeliveryRates();
             const wilayaName = (wilayaId && deliveryRates[wilayaId]) ? deliveryRates[wilayaId].name : 'غير محدد';
             
             const name = document.getElementById('custName').value;
@@ -528,8 +530,8 @@ ${productsText}
             showProductsList();
         }
 
-        // وظائف إدارة نظام السلة الجديد
         function addToCart(id) {
+            storeProducts = getProducts();
             const p = storeProducts.find(item => item.id === id);
             if (p) {
                 const existingIdx = cart.findIndex(item => item.id === id);
