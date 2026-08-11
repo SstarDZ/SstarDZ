@@ -159,7 +159,7 @@
         const TELEGRAM_BOT_TOKEN = "8709434736:AAGRhJuBNaEjG8H2Bbqwl2g0W-suhFAA2xo";
         const TELEGRAM_CHAT_ID = "8275297896";
 
-        let storeProducts = getProducts();
+        let storeProducts = [];
         let cart = [];
         let currentImageIdx = 0;
         let checkoutCartItems = [];
@@ -545,7 +545,11 @@ ${productsText}
         document.getElementById('closeCart').onclick = closeCartUI;
         document.getElementById('cartOverlay').onclick = closeCartUI;
 
-        showProductsList();
+        (async function init() {
+            mainContent.innerHTML = `<div style="text-align:center; padding: 3rem; color: var(--accent-gray);">جارِ تحميل المنتجات...</div>`;
+            await loadStoreData();
+            showProductsList();
+        })();
     </script>
 </body>
 </html>

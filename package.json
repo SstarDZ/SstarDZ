@@ -1,0 +1,13 @@
+{
+  "name": "dz-store",
+  "version": "1.0.0",
+  "description": "متجر DZ - يحفظ المنتجات وأسعار التوصيل والصور مباشرة في ملفات على الخادم",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}
