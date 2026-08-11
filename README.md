@@ -1,82 +1,59 @@
-# متجر DZ - نسخة مجانية ودائمة (بدون قرص محلي، بدون localStorage)
+# متجر DZ - نسخة Vercel (Serverless)
 
-كل التعديلات (منتجات، أسعار توصيل، صور) تُحفظ في خدمات سحابية مجانية دائمة:
+هذه نسخة معدّلة خصيصاً لتعمل على **Vercel**. Vercel لا يشغّل خادم Express تقليدي
+(`app.listen`)، بل كل ملف داخل مجلد `api/` يصبح "دالة سحابية" (serverless function)
+مستقلة تُستدعى عند الطلب فقط. لذلك تم تقسيم الخادم القديم إلى ملفات منفصلة:
 
-- **MongoDB Atlas** (فئة M0 المجانية) → المنتجات وأسعار التوصيل.
-- **Cloudinary** (الفئة المجانية) → صور المنتجات.
-- **Render** (فئة Free Web Service) → استضافة الخادم نفسه.
+```
+api/
+  products.js          <- GET/POST /api/products
+  delivery-rates.js     <- GET/POST /api/delivery-rates
+  upload-image.js        <- POST /api/upload-image
+  image.js                <- DELETE /api/image
+lib/
+  db.js                    <- الاتصال بـ MongoDB Atlas (مشترك بين الدوال)
+  cloudinary.js              <- إعداد Cloudinary (مشترك بين الدوال)
+data/
+  delivery-rates.default.json  <- تُستخدم فقط لتهيئة أسعار التوصيل أول مرة
+index.html / dashboard.html / data.js   <- تُخدَّم كملفات ثابتة تلقائياً من Vercel
+```
 
-بما أن البيانات والصور محفوظة خارج قرص السيرفر، فهي **لا تُفقد أبداً** حتى لو أعاد Render تشغيل
-الخدمة (وهذا يحصل تلقائياً على الخطة المجانية بعد فترة خمول).
+البيانات (المنتجات وأسعار التوصيل) في **MongoDB Atlas**، والصور في **Cloudinary** —
+كلاهما مجاني دائم، ومناسب تماماً لطبيعة Vercel التي لا تملك قرصاً دائماً للكتابة عليه.
 
 ---
 
-## الخطوة 1: أنشئ قاعدة بيانات MongoDB Atlas (مجانية)
+## المتغيرات البيئية المطلوبة على Vercel
 
-1. سجّل حساب على https://www.mongodb.com/cloud/atlas/register (مجاني، بدون بطاقة بنكية).
-2. أنشئ Cluster جديد واختر الفئة المجانية **M0**.
-3. من "Database Access" أنشئ مستخدم (اسم مستخدم + كلمة سر) بصلاحية قراءة/كتابة.
-4. من "Network Access" اضغط "Allow Access from Anywhere" (0.0.0.0/0) حتى يقدر Render يتصل.
-5. من "Connect" اختر "Drivers" وانسخ رابط الاتصال (connection string)، شكله تقريباً:
-   ```
-   mongodb+srv://USERNAME:PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
-   ```
-   هذا هو `MONGODB_URI`.
+من إعدادات مشروعك على vercel.com → **Settings → Environment Variables** أضف:
 
-## الخطوة 2: أنشئ حساب Cloudinary (مجاني)
+| المتغير | من أين تحصل عليه |
+|---|---|
+| `MONGODB_URI` | MongoDB Atlas → Connect → Drivers |
+| `MONGODB_DB` | اختياري، افتراضياً `dzstore` |
+| `CLOUDINARY_CLOUD_NAME` | لوحة تحكم Cloudinary → Dashboard |
+| `CLOUDINARY_API_KEY` | لوحة تحكم Cloudinary → Dashboard |
+| `CLOUDINARY_API_SECRET` | لوحة تحكم Cloudinary → Dashboard |
 
-1. سجّل حساب على https://cloudinary.com/users/register/free (مجاني دائم).
-2. من لوحة التحكم الرئيسية (Dashboard) ستجد مباشرة:
-   - `Cloud Name`
-   - `API Key`
-   - `API Secret`
+بعد إضافتها، اعمل **Redeploy** للمشروع من تبويب Deployments حتى تُطبَّق المتغيرات
+(إضافة متغير بيئي لا تُفعَّل تلقائياً على نشر سابق).
 
-## الخطوة 3: التشغيل محلياً (اختياري، للتجربة على جهازك)
+## التشغيل محلياً (اختياري)
 
 ```bash
+npm install -g vercel   # إن لم يكن مثبتاً
 npm install
-cp .env.example .env
-# ثم افتح .env وضع فيه القيم الحقيقية من الخطوتين 1 و 2
-npm start
+vercel dev
 ```
 
-بعدها افتح:
-- المتجر: http://localhost:3000
-- لوحة التحكم: http://localhost:3000/dashboard.html
+`vercel dev` يشغّل نفس بيئة Vercel محلياً (يقرأ ملف `.env` أو `.env.local` تلقائياً).
+انسخ `.env.example` إلى `.env` وضع فيه القيم الحقيقية قبل التشغيل.
 
-## الخطوة 4: النشر المجاني على Render
+## ملاحظات مهمة
 
-1. تأكد أن المشروع مرفوع على GitHub.
-2. افتح https://render.com وسجّل دخول بحساب GitHub.
-3. اضغط **New → Web Service** واختر الريبو الخاص بمشروعك.
-4. اضبط:
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-   - **Instance Type:** Free
-5. من تبويب **Environment** أضف المتغيرات التالية (نفس القيم من .env عندك):
-   - `MONGODB_URI`
-   - `MONGODB_DB` (اختياري، القيمة الافتراضية `dzstore`)
-   - `CLOUDINARY_CLOUD_NAME`
-   - `CLOUDINARY_API_KEY`
-   - `CLOUDINARY_API_SECRET`
-6. اضغط **Create Web Service** وانتظر انتهاء البناء.
-7. ستحصل على رابط عام مثل `https://your-app.onrender.com` — جرّب فتحه وفتح `/dashboard.html` وأضف منتجاً تجريبياً.
-
-> ملاحظة: الخدمة المجانية على Render "تنام" بعد 15 دقيقة خمول، وأول طلب بعدها يأخذ حوالي دقيقة
-> ليستيقظ السيرفر. هذا طبيعي على الخطة المجانية ولا يؤثر على البيانات المحفوظة إطلاقاً.
-
----
-
-## هيكل المشروع
-
-```
-project/
-  server.js              <- الخادم (Express) + الاتصال بـ MongoDB و Cloudinary
-  package.json
-  data.js                 <- كود الواجهة الذي يتحدث مع الخادم (fetch)
-  index.html               <- صفحة المتجر
-  dashboard.html            <- لوحة التحكم
-  data/
-    delivery-rates.default.json  <- تُستخدم فقط لتهيئة أسعار التوصيل أول مرة في قاعدة البيانات
-  .env.example              <- نموذج للمتغيرات البيئية المطلوبة
-```
+- لا حاجة لـ `vercel.json`: البنية أعلاه (ملفات ثابتة في الجذر + مجلد `api/`) تُكتشف
+  تلقائياً من Vercel.
+- كل استدعاء لدالة سحابية يفتح اتصالاً بقاعدة البيانات؛ استخدمنا اتصالاً مُخزَّناً مؤقتاً
+  (`lib/db.js`) لتقليل زمن الاستجابة قدر الإمكان بين الاستدعاءات المتتالية.
+- رفع الصور يمر أولاً عبر ملف مؤقت داخل `/tmp` (مساحة مؤقتة يوفرها Vercel لكل تنفيذ)
+  ثم يُرفع إلى Cloudinary مباشرة؛ لا يبقى أي أثر دائم على خوادم Vercel.

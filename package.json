@@ -1,16 +1,10 @@
 {
   "name": "dz-store",
-  "version": "2.0.0",
-  "description": "متجر DZ - يحفظ المنتجات وأسعار التوصيل في MongoDB Atlas والصور في Cloudinary (تخزين مجاني ودائم)",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "version": "3.0.0",
+  "description": "متجر DZ - نسخة Vercel (Serverless): المنتجات وأسعار التوصيل في MongoDB Atlas، الصور في Cloudinary",
   "dependencies": {
-    "express": "^4.19.2",
-    "multer": "^1.4.5-lts.1",
     "mongodb": "^6.9.0",
     "cloudinary": "^2.5.1",
-    "dotenv": "^16.4.5"
+    "formidable": "^3.5.1"
   }
 }
