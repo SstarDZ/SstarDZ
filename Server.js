@@ -1,100 +1,179 @@
 /**
- * server.js - خادم بسيط لمتجر DZ
- * يقوم بتخديم الملفات الثابتة (index.html, dashboard.html, data.js)
- * ويوفر API لحفظ المنتجات وأسعار التوصيل والصور مباشرة في ملفات حقيقية
- * على القرص (وليس في المتصفح/localStorage).
+ * server.js - خادم متجر DZ
+ *
+ * البيانات (المنتجات وأسعار التوصيل) تُحفظ في قاعدة بيانات MongoDB Atlas
+ * (مجانية دائمة، فئة M0)، وصور المنتجات تُحفظ وتُستضاف عبر Cloudinary
+ * (مجاني دائم أيضاً). لا يعتمد المشروع على القرص المحلي للسيرفر إطلاقاً،
+ * لذلك يعمل بشكل موثوق حتى على استضافات مجانية يُعاد تشغيلها بشكل متكرر
+ * مثل Render (Free Web Service)، لأن البيانات لا تُفقد أبداً مع كل إعادة تشغيل.
+ *
+ * المتغيرات البيئية المطلوبة (env vars):
+ *   MONGODB_URI            رابط الاتصال بقاعدة بيانات MongoDB Atlas
+ *   MONGODB_DB              اسم قاعدة البيانات (اختياري، افتراضي: dzstore)
+ *   CLOUDINARY_CLOUD_NAME    من لوحة تحكم Cloudinary
+ *   CLOUDINARY_API_KEY
+ *   CLOUDINARY_API_SECRET
  */
+
+require('dotenv').config();
 
 const express = require('express');
 const multer = require('multer');
-const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const fs = require('fs');
+const { MongoClient } = require('mongodb');
+const { v2: cloudinary } = require('cloudinary');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const DATA_DIR = path.join(__dirname, 'data');
-const IMG_DIR = path.join(__dirname, 'img');
-const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
-const RATES_FILE = path.join(DATA_DIR, 'delivery-rates.json');
-
-// تأكد من وجود المجلدات والملفات الأساسية
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(IMG_DIR)) fs.mkdirSync(IMG_DIR, { recursive: true });
-if (!fs.existsSync(PRODUCTS_FILE)) fs.writeFileSync(PRODUCTS_FILE, '[]');
-if (!fs.existsSync(RATES_FILE)) fs.writeFileSync(RATES_FILE, '{}');
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static(__dirname)); // يخدم index.html, dashboard.html, data.js, img/ ...
-
-// تخزين الصور المرفوعة مباشرة داخل مجلد img/ باسم فريد
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, IMG_DIR),
-    filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname) || '.jpg';
-        const uniqueName = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
-        cb(null, uniqueName);
-    }
+// ---------------------------------------------------------------------
+// إعداد Cloudinary (تخزين واستضافة صور المنتجات)
+// ---------------------------------------------------------------------
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
-const upload = multer({ storage });
 
-function readJsonFile(filePath) {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+// الصور تُستقبل في الذاكرة مؤقتاً فقط، ثم تُرفع مباشرة إلى Cloudinary
+// (لا يوجد أي كتابة على قرص السيرفر)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+
+function uploadBufferToCloudinary(buffer) {
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { folder: 'dz-store-products' },
+            (error, result) => (error ? reject(error) : resolve(result))
+        );
+        stream.end(buffer);
+    });
 }
 
-function writeJsonFile(filePath, data) {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 4), 'utf8');
+// يستخرج public_id من رابط Cloudinary حتى نقدر نحذف الصورة عند حذف المنتج
+function extractPublicId(url) {
+    const match = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+$/);
+    return match ? match[1] : null;
 }
+
+// ---------------------------------------------------------------------
+// إعداد MongoDB Atlas (المنتجات وأسعار التوصيل)
+// ---------------------------------------------------------------------
+const DB_NAME = process.env.MONGODB_DB || 'dzstore';
+let db;
+
+async function connectDB() {
+    if (!process.env.MONGODB_URI) {
+        throw new Error('لم يتم ضبط MONGODB_URI في المتغيرات البيئية.');
+    }
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    db = client.db(DB_NAME);
+    console.log('تم الاتصال بقاعدة بيانات MongoDB Atlas بنجاح');
+
+    // تهيئة أسعار التوصيل تلقائياً عند أول تشغيل فقط (58 ولاية) إن لم تكن موجودة
+    const settings = db.collection('settings');
+    const existingRates = await settings.findOne({ _id: 'delivery_rates' });
+    if (!existingRates) {
+        const defaultRatesPath = path.join(__dirname, 'data', 'delivery-rates.default.json');
+        const defaultRates = JSON.parse(fs.readFileSync(defaultRatesPath, 'utf8'));
+        await settings.insertOne({ _id: 'delivery_rates', rates: defaultRates });
+        console.log('تمت تهيئة أسعار التوصيل الافتراضية لأول مرة');
+    }
+}
+
+app.use(express.json({ limit: '2mb' }));
+app.use(express.static(__dirname));
 
 // --- المنتجات ---
-app.get('/api/products', (req, res) => {
-    res.json(readJsonFile(PRODUCTS_FILE));
+app.get('/api/products', async (req, res) => {
+    try {
+        const products = await db.collection('products').find({}, { projection: { _id: 0 } }).toArray();
+        res.json(products);
+    } catch (err) {
+        res.status(500).json({ error: 'تعذر قراءة المنتجات من قاعدة البيانات' });
+    }
 });
 
-app.post('/api/products', (req, res) => {
+app.post('/api/products', async (req, res) => {
     const products = req.body;
     if (!Array.isArray(products)) {
         return res.status(400).json({ error: 'يجب إرسال مصفوفة منتجات' });
     }
-    writeJsonFile(PRODUCTS_FILE, products);
-    res.json(products);
+    try {
+        const collection = db.collection('products');
+        await collection.deleteMany({});
+        if (products.length > 0) {
+            await collection.insertMany(products);
+        }
+        res.json(products);
+    } catch (err) {
+        res.status(500).json({ error: 'تعذر حفظ المنتجات في قاعدة البيانات' });
+    }
 });
 
 // --- أسعار التوصيل ---
-app.get('/api/delivery-rates', (req, res) => {
-    res.json(readJsonFile(RATES_FILE));
+app.get('/api/delivery-rates', async (req, res) => {
+    try {
+        const doc = await db.collection('settings').findOne({ _id: 'delivery_rates' });
+        res.json(doc ? doc.rates : {});
+    } catch (err) {
+        res.status(500).json({ error: 'تعذر قراءة أسعار التوصيل من قاعدة البيانات' });
+    }
 });
 
-app.post('/api/delivery-rates', (req, res) => {
+app.post('/api/delivery-rates', async (req, res) => {
     const rates = req.body;
     if (typeof rates !== 'object' || rates === null || Array.isArray(rates)) {
         return res.status(400).json({ error: 'صيغة أسعار التوصيل غير صحيحة' });
     }
-    writeJsonFile(RATES_FILE, rates);
-    res.json(rates);
+    try {
+        await db.collection('settings').replaceOne(
+            { _id: 'delivery_rates' },
+            { _id: 'delivery_rates', rates },
+            { upsert: true }
+        );
+        res.json(rates);
+    } catch (err) {
+        res.status(500).json({ error: 'تعذر حفظ أسعار التوصيل في قاعدة البيانات' });
+    }
 });
 
-// --- رفع صور المنتجات: تُحفظ كملف حقيقي داخل مجلد img/ ---
-app.post('/api/upload-image', upload.single('image'), (req, res) => {
+// --- رفع صور المنتجات إلى Cloudinary ---
+app.post('/api/upload-image', upload.single('image'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'لم يتم إرسال أي صورة' });
     }
-    res.json({ path: `img/${req.file.filename}` });
+    try {
+        const result = await uploadBufferToCloudinary(req.file.buffer);
+        res.json({ path: result.secure_url });
+    } catch (err) {
+        res.status(500).json({ error: 'تعذر رفع الصورة إلى Cloudinary' });
+    }
 });
 
-// --- حذف صورة من مجلد img/ (اختياري، عند حذف منتج) ---
-app.delete('/api/image', (req, res) => {
-    const relPath = req.query.path || '';
-    const filename = path.basename(relPath);
-    const fullPath = path.join(IMG_DIR, filename);
-    if (fullPath.startsWith(IMG_DIR) && fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
+// --- حذف صورة من Cloudinary (اختياري، عند حذف منتج) ---
+app.delete('/api/image', async (req, res) => {
+    const url = req.query.path || '';
+    const publicId = extractPublicId(url);
+    if (publicId) {
+        try {
+            await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+            // لا نوقف الطلب في حال فشل حذف الصورة، المنتج نفسه محذوف من قاعدة البيانات أصلاً
+        }
     }
     res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
-    console.log(`متجر DZ يعمل على: http://localhost:${PORT}`);
-    console.log(`لوحة التحكم: http://localhost:${PORT}/dashboard.html`);
-});
+connectDB()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`متجر DZ يعمل على: http://localhost:${PORT}`);
+            console.log(`لوحة التحكم: http://localhost:${PORT}/dashboard.html`);
+        });
+    })
+    .catch(err => {
+        console.error('فشل الاتصال بقاعدة البيانات، تأكد من صحة MONGODB_URI:', err.message);
+        process.exit(1);
+    });
